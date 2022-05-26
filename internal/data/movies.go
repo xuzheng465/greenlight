@@ -1,6 +1,8 @@
 package data
 
 import (
+	"database/sql"
+	"github.com/lib/pq"
 	"github.com/xuzheng465/greenlight/internal/validator"
 	"time"
 )
@@ -31,4 +33,55 @@ func ValidateMovie(v *validator.Validator, movie *Movie) {
 	v.Check(len(movie.Genres) <= 5, "genres", "must not contain more than 5 genres")
 	v.Check(validator.Unique(movie.Genres), "genres", "must not contain duplicate values")
 
+}
+
+type MovieModel struct {
+	DB *sql.DB
+}
+
+func (m MovieModel) Insert(movie *Movie) error {
+	stmt := `
+		INSERT INTO movies (title, year, runtime, genres)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at, version
+	`
+	args := []interface{}{movie.Title, movie.Year, movie.RunTime, pq.Array(movie.Genres)}
+
+	return m.DB.QueryRow(stmt, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+}
+
+// Get returns a movie by its ID.
+func (m MovieModel) Get(id int64) (*Movie, error) {
+	stmt := `
+		SELECT id, created_at, title, year, runtime, version
+		FROM movies
+		WHERE id = $1
+	`
+	movie := &Movie{}
+	err := m.DB.QueryRow(stmt, id).Scan(&movie.ID, &movie.CreatedAt, &movie.Title, &movie.Year, &movie.RunTime, &movie.Version)
+	if err != nil {
+		return nil, err
+	}
+	return movie, nil
+}
+
+// Update movie
+func (m MovieModel) Update(movie *Movie) error {
+	stmt := `
+		UPDATE movies
+		SET title = $1, year = $2, runtime = $3, version = $4
+		WHERE id = $5
+	`
+	_, err := m.DB.Exec(stmt, movie.Title, movie.Year, movie.RunTime, movie.Version, movie.ID)
+	return err
+}
+
+// Delete movie by ID
+func (m MovieModel) Delete(id int64) error {
+	stmt := `
+		DELETE FROM movies
+		WHERE id = $1
+	`
+	_, err := m.DB.Exec(stmt, id)
+	return err
 }

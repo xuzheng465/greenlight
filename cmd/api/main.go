@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/xuzheng465/greenlight/internal/data"
 	"log"
 	"net/http"
 	"os"
@@ -36,6 +37,7 @@ type config struct {
 type application struct {
 	config config
 	logger *log.Logger
+	models data.Models
 }
 
 func main() {
@@ -59,21 +61,20 @@ func main() {
 	// Prefixed with the current date and time
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
+	// Connect to the database
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.Fatalf("Error opening DB: %v", err)
 	}
 	defer db.Close()
-
 	logger.Printf("Database connection pool established")
 
+	// Initialize a new application struct, passing in the config struct and the logger
 	app := &application{
 		config: cfg,
 		logger: logger,
+		models: data.NewModels(db),
 	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/healthcheck", app.healthcheckHandler)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.port),
@@ -89,6 +90,7 @@ func main() {
 
 }
 
+// openDB opens a connection to the database using the config settings.
 func openDB(cfg config) (*sql.DB, error) {
 	db, err := sql.Open("postgres", cfg.db.dsn)
 	if err != nil {
