@@ -7,6 +7,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -79,7 +80,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst int
 
 		case err.Error() == "http: request body too large":
 			return fmt.Errorf("body must not be larger than %d bytes", maxBytes)
-			
+
 		case errors.As(err, &invalidUnmarshalError):
 			panic(err)
 		default:
@@ -91,4 +92,12 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst int
 		return errors.New("body must only contain a single JSON object")
 	}
 	return nil
+}
+
+func (app *application) readString(qs url.Values, key string, defaultValue string) string {
+	s := qs.Get(key)
+	if s == "" {
+		return defaultValue
+	}
+	return s
 }
