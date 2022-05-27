@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/xuzheng465/greenlight/internal/data"
+	"github.com/xuzheng465/greenlight/internal/jsonlog"
 	"log"
 	"net/http"
 	"os"
@@ -36,7 +37,7 @@ type config struct {
 // and middleware. At the moment this only contains a copy of the config struct and a logger
 type application struct {
 	config config
-	logger *log.Logger
+	logger *jsonlog.Logger
 	models data.Models
 }
 
@@ -59,15 +60,15 @@ func main() {
 	flag.Parse()
 	// Initialize a new logger which writes messages to the standard out stream.
 	// Prefixed with the current date and time
-	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
 	// Connect to the database
 	db, err := openDB(cfg)
 	if err != nil {
-		logger.Fatalf("Error opening DB: %v", err)
+		logger.PrintFatal(err, nil)
 	}
 	defer db.Close()
-	logger.Printf("Database connection pool established")
+	logger.PrintInfo("Database connection pool established", nil)
 
 	// Initialize a new application struct, passing in the config struct and the logger
 	app := &application{
@@ -80,13 +81,17 @@ func main() {
 		Addr:         fmt.Sprintf(":%d", cfg.port),
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
+		ErrorLog:     log.New(logger, "", 0),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
-	logger.Printf("starting %s server on %s", cfg.env, srv.Addr)
+	logger.PrintInfo("starting server", map[string]string{
+		"addr": srv.Addr,
+		"env":  cfg.env,
+	})
 	err = srv.ListenAndServe()
-	logger.Fatal(err)
+	logger.PrintFatal(err, nil)
 
 }
 
