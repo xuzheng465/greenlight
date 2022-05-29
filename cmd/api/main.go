@@ -7,8 +7,11 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/xuzheng465/greenlight/internal/data"
 	"github.com/xuzheng465/greenlight/internal/jsonlog"
+	"github.com/xuzheng465/greenlight/internal/mailer"
 	"log"
 	"os"
+	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -34,6 +37,13 @@ type config struct {
 		burst   int
 		enabled bool
 	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
 // Define an application struct to hold the dependencies for our HTTP handlers, helpers,
@@ -42,6 +52,8 @@ type application struct {
 	config config
 	logger *jsonlog.Logger
 	models data.Models
+	mailer mailer.Mailer
+	wg     sync.WaitGroup
 }
 
 func main() {
@@ -63,6 +75,14 @@ func main() {
 	//flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("dsn"), "PostgreSQL DSN")
 	cfg.db.dsn = os.Getenv("dsn")
 
+	smtpPort, _ := strconv.Atoi(os.Getenv("smtp_port"))
+	// mail config
+	flag.StringVar(&cfg.smtp.host, "smtp-host", os.Getenv("smtp_host"), "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", smtpPort, "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("smtp_username"), "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("smtp_password"), "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("smtp_sender"), "SMTP sender")
+
 	flag.Parse()
 	// Initialize a new logger which writes messages to the standard out stream.
 	// Prefixed with the current date and time
@@ -81,6 +101,7 @@ func main() {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 
 	err = app.serve()
